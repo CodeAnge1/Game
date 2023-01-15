@@ -5,6 +5,7 @@ import sys
 import os
 from settings import *
 from debug import debug
+from debug import font
 
 
 def load_image(name, colorkey=None):
@@ -74,23 +75,41 @@ class Pickaxe(pygame.sprite.Sprite):
         self.change_direction()
 
 
-class Ore(pygame.sprite.Sprite):
-    image = load_image("static_images/iron_ore.png")
+class Resource(pygame.sprite.Sprite):
 
-    def __init__(self, pos, groups):
+    def __init__(self, pos, groups, columns, rows, image_name, resource_hp):
         super().__init__(groups)
-        self.ore_hp = 5
+        self.display_surface = pygame.display.get_surface()
+        self.hp = resource_hp
+        self.frames = []
+        self.cut_sheet(load_image(image_name), columns, rows)
+        self.cur_frame = 0
 
-        self.image = Ore.image
+        self.image = self.frames[self.cur_frame]
+
         self.pos = pos
         self.rect = self.image.get_rect(topleft=(self.pos[0] * TILE_SIZE, self.pos[1] * TILE_SIZE - 25))
         self.rect = self.rect.inflate(-32, -32)
 
-    def generate_ore(self):
-        self.image = Ore.image
-        pos = random.choice(self.possible_positions)
-        print(pos)
-        self.rect = self.image.get_rect(topleft=(pos[0] * TILE_SIZE, pos[1] * TILE_SIZE))
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+
+    def get_damage(self):
+        if 0 < self.hp < 5:
+            self.cur_frame += 1
+            self.image = self.frames[self.cur_frame]
+        else:
+            game.resources.remove(self)
+            game.level.visible_sprites.remove(self)
+            game.level.obstacle_sprites.remove(self)
+            game.level.impossible_positions.remove((self.pos[1], self.pos[0]))
+            game.level.possible_positions.append((self.pos[1], self.pos[0]))
 
 
 class Player(pygame.sprite.Sprite):
@@ -125,8 +144,19 @@ class Player(pygame.sprite.Sprite):
                 group.append(sheet.subsurface(pygame.Rect(
                     frame_location, self.rect.size)))
 
-    def attack(self):
+    def attack(self, mouse_pos):
         self.is_attack = True
+        # print("mouse:", mouse_pos)
+        # print("offset:", game.level.visible_sprites.offset)
+        # print("player_pos:", game.level.player.get_pos())
+        # print(game.attack_count)
+        for resource in game.resources:
+            if (resource.rect.x < (mouse_pos[0] + game.level.visible_sprites.offset.x) < resource.rect.x + 64) and \
+                    (resource.rect.y < (mouse_pos[1] + game.level.visible_sprites.offset.y) < resource.rect.y + 64):
+                resource.hp -= 1
+                resource.get_damage()
+                break
+        # print()
 
     def change_direction(self):
         keys = pygame.key.get_pressed()
@@ -212,6 +242,7 @@ class Level:
         self.ground_sprites = pygame.sprite.Group()
         self.obstacle_sprites = pygame.sprite.Group()
         self.possible_positions = []
+        self.impossible_positions = []
         self.create_map()
 
     def create_map(self):
@@ -231,7 +262,6 @@ class Level:
         self.visible_sprites.draw(self.player)
         self.player.movement()
         self.pickaxe.movement()
-        debug(self.visible_sprites.get_offset())
         if self.player.is_attack:
             self.pickaxe.update()
             self.pickaxe.draw(self.display_surface)
@@ -257,12 +287,11 @@ class CameraMovement(pygame.sprite.Group):
             offset_position = sprite.rect.topleft - self.offset
             self.display_surface.blit(sprite.image, offset_position)
 
-    def get_offset(self):
-        return self.offset
-
 
 class Game:
     def __init__(self):
+        self.game_is_started = False
+        self.game_is_paused = False
         pygame.init()
         size = WIDTH, HEIGHT
         self.screen = pygame.display.set_mode(size)
@@ -270,39 +299,89 @@ class Game:
         self.running = True
         self.clock = pygame.time.Clock()
         self.pickaxe_attack_animation = False
+        self.anim_is_end = True
         self.is_up = True
-        self.ores = []
-        self.damage_was_done = False
+        self.attack_count = 0
+        self.mouse_pos = ()
+        self.resources = []
         self.level = Level()
         for i in range(2):
             pos = random.choice(self.level.possible_positions)
+            self.level.impossible_positions.append(pos)
             self.level.possible_positions.remove(pos)
-            self.ore = Ore((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites])
-            self.ores.append(self.ore)
+            ore = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 5, 1, "static_images/iron_ore.png", 5)
+            self.resources.append(ore)
 
     def run(self):
         while self.running:
-            # self.screen.fill(COLORS["background"])
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.level.player.attack()
-                    self.is_up = False
-                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                    self.is_up = True
+            self.screen.fill(COLORS["background"])
+            if self.game_is_started:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        self.is_up = False
+                        self.pickaxe_attack_animation = True
+                        if self.anim_is_end and self.pickaxe_attack_animation:
+                            self.level.player.attack(event.pos)
+                        self.attack_count = 1
+                        self.anim_is_end = False
+                    if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                        self.is_up = True
+                        self.attack_count = 0
+                        self.pickaxe_attack_animation = False
+                    if event.type == pygame.MOUSEMOTION:
+                        self.mouse_pos = event.pos
 
-            self.level.run()
-            self.clock.tick(60)
-            pygame.display.flip()
-            if self.level.pickaxe.frames_pickaxe_attack_left[0] == self.level.pickaxe.image or \
-                    self.level.pickaxe.frames_pickaxe_attack_right[0] == self.level.pickaxe.image:
-                self.damage_was_done = False
-            if self.level.pickaxe.frames_pickaxe_attack_left[-1] == self.level.pickaxe.image or self.level.pickaxe.frames_pickaxe_attack_right[-1] == self.level.pickaxe.image:
-                if self.is_up:
+                self.level.run()
+                self.clock.tick(60)
+                if self.level.pickaxe.frames_pickaxe_attack_left[-1] == self.level.pickaxe.image or self.level.pickaxe.frames_pickaxe_attack_right[-1] == self.level.pickaxe.image:
+                    self.anim_is_end = True
+                    self.pickaxe_attack_animation = False
                     self.level.player.is_attack = False
-                self.damage_was_done = True
+            else:
+                menu = Menu(["game_menu/background.png", "game_menu/start_btn.png", "game_menu/exit_btn.png"])
+                menu.draw()
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        menu.update(event.pos)
+            pygame.display.flip()
         pygame.quit()
+
+
+class Menu:
+    def __init__(self, image_names):
+        self.display_surface = pygame.display.get_surface()
+
+        self.back_image = load_image(image_names[0])
+        self.back_rect = self.back_image.get_rect()
+
+        self.btn_start_image = load_image(image_names[1])
+        self.btn_start_rect = self.btn_start_image.get_rect(topleft=(WIDTH // 2 - 205, HEIGHT // 2 - 153))
+
+        self.btn_exit_image = load_image(image_names[2])
+        self.btn_exit_rect = self.btn_start_image.get_rect(topleft=(WIDTH // 2 - 100, HEIGHT - 250))
+
+    def start_game(self):
+        game.game_is_started = True
+
+    def exit_game(self):
+        sys.exit()
+
+    def draw(self):
+        self.display_surface.blit(self.back_image, self.back_rect)
+        self.display_surface.blit(self.btn_start_image, self.btn_start_rect)
+        self.display_surface.blit(self.btn_exit_image, self.btn_exit_rect)
+
+    def update(self, pos):
+        if (self.btn_start_rect[0] < pos[0] < self.btn_start_rect[0] + self.btn_start_rect[2]) and \
+                (self.btn_start_rect[1] < pos[1] < self.btn_start_rect[1] + self.btn_start_rect[3]):
+            self.start_game()
+        elif (self.btn_exit_rect[0] < pos[0] < self.btn_exit_rect[0] + self.btn_exit_rect[2]) and \
+                (self.btn_exit_rect[1] < pos[1] < self.btn_exit_rect[1] + self.btn_exit_rect[3]):
+            self.exit_game()
 
 
 if __name__ == "__main__":
