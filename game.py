@@ -77,13 +77,14 @@ class Pickaxe(pygame.sprite.Sprite):
 
 class Resource(pygame.sprite.Sprite):
 
-    def __init__(self, pos, groups, columns, rows, image_name, resource_hp):
+    def __init__(self, pos, groups, columns, rows, image_name, resource_hp, resource_name):
         super().__init__(groups)
         self.display_surface = pygame.display.get_surface()
         self.hp = resource_hp
         self.frames = []
         self.cut_sheet(load_image(image_name), columns, rows)
         self.cur_frame = 0
+        self.resource_name = resource_name
 
         self.image = self.frames[self.cur_frame]
 
@@ -101,7 +102,7 @@ class Resource(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
     def get_damage(self):
-        if 0 < self.hp < 5:
+        if 0 < self.hp:
             self.cur_frame += 1
             self.image = self.frames[self.cur_frame]
         else:
@@ -146,17 +147,12 @@ class Player(pygame.sprite.Sprite):
 
     def attack(self, mouse_pos):
         self.is_attack = True
-        # print("mouse:", mouse_pos)
-        # print("offset:", game.level.visible_sprites.offset)
-        # print("player_pos:", game.level.player.get_pos())
-        # print(game.attack_count)
         for resource in game.resources:
             if (resource.rect.x < (mouse_pos[0] + game.level.visible_sprites.offset.x) < resource.rect.x + 64) and \
                     (resource.rect.y < (mouse_pos[1] + game.level.visible_sprites.offset.y) < resource.rect.y + 64):
                 resource.hp -= 1
                 resource.get_damage()
                 break
-        # print()
 
     def change_direction(self):
         keys = pygame.key.get_pressed()
@@ -288,10 +284,48 @@ class CameraMovement(pygame.sprite.Group):
             self.display_surface.blit(sprite.image, offset_position)
 
 
+class Inventory:
+    def __init__(self):
+        self.display_surface = pygame.display.get_surface()
+        self.items = {}
+        self.images = {"berry": load_image("static_images/berry.png")}
+        self.background_image = load_image("static_images/inventory_background.png")
+        self.background_rect = self.background_image.get_rect(topleft=(WIDTH // 2 - 437, HEIGHT // 2 - 123))
+
+    def append_item(self, item_name, item_count):
+        if item_name in self.items.keys():
+            self.items[item_name] = int(self.items[item_name]) + item_count
+        else:
+            self.items[item_name] = item_count
+
+    def remove_item(self, item_name, item_count):
+        if item_name in self.items.keys():
+            self.items[item_name] = int(self.items[item_name]) - item_count
+        else:
+            return
+
+    def draw(self, screen):
+        screen.blit(self.background_image, self.background_rect)
+        self.offset = (104, 0)
+        offset = (0, 0)
+        counter = 0
+        for k in self.items.keys():
+            if counter == 9:
+                counter = 0
+                self.offset = (100, 100)
+            offset = (self.offset[0] * counter, self.offset[1])
+            screen.blit(self.images[k], self.images[k].get_rect(topleft=(((WIDTH // 2 - 415 + offset[0]), HEIGHT // 2 - 85 + offset[1]))))
+            count_text = font.render(str(self.items[k]), True, "white")
+            count_rect = count_text.get_rect(topleft=((WIDTH // 2 - 415 + offset[0]) + 40, (HEIGHT // 2 - 85 + offset[1]) + 40))
+            screen.blit(count_text, count_rect)
+            counter += 1
+
+
 class Game:
     def __init__(self):
         self.game_is_started = False
         self.game_is_paused = False
+        self.inventory = Inventory()
         pygame.init()
         size = WIDTH, HEIGHT
         self.screen = pygame.display.set_mode(size)
@@ -304,13 +338,35 @@ class Game:
         self.attack_count = 0
         self.mouse_pos = ()
         self.resources = []
+        self.resources_list = ["bush.png", "bush.png", "bush.png", "coal_ore.png", "iron_ore.png", "rock.png",
+                               "rock.png", "rock.png", "tree.png", "tree.png"]
+        self.resource_generate_event = pygame.USEREVENT + 1
+        pygame.time.set_timer(self.resource_generate_event, 40000)
         self.level = Level()
-        for i in range(2):
-            pos = random.choice(self.level.possible_positions)
-            self.level.impossible_positions.append(pos)
-            self.level.possible_positions.remove(pos)
-            ore = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 5, 1, "static_images/iron_ore.png", 5)
-            self.resources.append(ore)
+        for i in range(random.randint(3, 9)):
+            self.resource_generate()
+
+    def resource_generate(self):
+        pos = random.choice(self.level.possible_positions)
+        self.level.impossible_positions.append(pos)
+        self.level.possible_positions.remove(pos)
+        resource_file = random.choice(self.resources_list)
+        if resource_file == "iron_ore.png":
+            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 3,
+                           3, f"static_images/{resource_file}", 9, resource_file.split('.')[0])
+        elif resource_file == "rock.png":
+            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 5,
+                           1, f"static_images/{resource_file}", 5, resource_file.split('.')[0])
+        elif resource_file == "tree.png":
+            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 7,
+                           1, f"static_images/{resource_file}", 7, resource_file.split('.')[0])
+        elif resource_file == "coal_ore.png":
+            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 7,
+                           1, f"static_images/{resource_file}", 7, resource_file.split('.')[0])
+        elif resource_file == "bush.png":
+            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 2,
+                           1, f"static_images/{resource_file}", 2, resource_file.split('.')[0])
+        self.resources.append(res)
 
     def run(self):
         while self.running:
@@ -319,21 +375,33 @@ class Game:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         self.running = False
-                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        self.is_up = False
-                        self.pickaxe_attack_animation = True
-                        if self.anim_is_end and self.pickaxe_attack_animation:
-                            self.level.player.attack(event.pos)
-                        self.attack_count = 1
-                        self.anim_is_end = False
-                    if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                        self.is_up = True
-                        self.attack_count = 0
-                        self.pickaxe_attack_animation = False
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            self.game_is_paused = not self.game_is_paused
+                            print(self.game_is_paused)
                     if event.type == pygame.MOUSEMOTION:
                         self.mouse_pos = event.pos
+                    if self.game_is_paused:
+                        self.inventory.draw(self.screen)
+                    else:
+                        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                            self.is_up = False
+                            self.pickaxe_attack_animation = True
+                            if self.anim_is_end and self.pickaxe_attack_animation:
+                                self.level.player.attack(event.pos)
+                            self.attack_count = 1
+                            self.anim_is_end = False
+                        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                            self.is_up = True
+                            self.attack_count = 0
+                            self.pickaxe_attack_animation = False
+                        if event.type == self.resource_generate_event:
+                            if self.level.possible_positions:
+                                self.resource_generate()
 
                 self.level.run()
+                if self.game_is_paused:
+                    self.inventory.draw(self.screen)
                 self.clock.tick(60)
                 if self.level.pickaxe.frames_pickaxe_attack_left[-1] == self.level.pickaxe.image or self.level.pickaxe.frames_pickaxe_attack_right[-1] == self.level.pickaxe.image:
                     self.anim_is_end = True
