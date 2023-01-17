@@ -3,7 +3,6 @@ import random
 import sys
 import os
 from settings import *
-from debug import debug
 from debug import font
 
 
@@ -271,11 +270,9 @@ class Level:
                                          [load_image("animation/marshmallow_left_idle_with_pickaxe.png"),
                                           load_image("animation/marshmallow_right_idle_with_pickaxe.png"),
                                           load_image("animation/marshmallow_left_idle_without_pickaxe.png"),
-                                          load_image("animation/marshmallow_right_idle_without_pickaxe.png")], 8, 5, 64,
-                                         64)
+                                          load_image("animation/marshmallow_right_idle_without_pickaxe.png")], 8, 5)
                     self.pickaxe = Pickaxe((x + 174, y - 122), [load_image("animation/pickaxe_attack_left.png"),
-                                                                load_image("animation/pickaxe_attack_right.png")], 7, 6,
-                                           64, 64)
+                                                                load_image("animation/pickaxe_attack_right.png")], 7, 6)
 
     def add_new_space(self, level_name):
         self.possible_positions.clear()
@@ -300,6 +297,8 @@ class Level:
         if self.player.is_attack:
             self.pickaxe.update()
             self.pickaxe.draw(self.display_surface)
+        self.money_count_text = font.render(str(self.player.money_count), True, "white")
+        self.money_count_rect = self.money_count_text.get_rect(topleft=(75, HEIGHT - 53))
         self.display_surface.blit(self.money_count_text, self.money_count_rect)
         self.display_surface.blit(self.money_img, self.money_rect)
 
@@ -331,51 +330,11 @@ class CameraMovement(pygame.sprite.Group):
             self.display_surface.blit(sprite.image, offset_position)
 
 
-# class Forge:
-#     def __init__(self):
-#         pass
-#
-#
-# class Furnace(pygame.sprite.Sprite):
-#     def __init__(self, groups):
-#         super().__init__(groups)
-#         self.display_surface = pygame.display.get_surface()
-#         self.image = load_image("buildings\Furnace.png")
-#         self.pos = ()
-#         self.is_build = False
-#         self.rect = pygame.rect.Rect((-100, -100, 0, 0))
-#
-#     def build(self):
-#         if not self.is_build:
-#             if game.inventory.item_in_inventory("rock"):
-#                 if game.inventory.get_item_count("rock") >= 10:
-#                     game.inventory.remove_item("rock", 10)
-#                     self.is_build = True
-#                     pos = game.mouse_pos[0] // TILE_SIZE, game.mouse_pos[1] // TILE_SIZE
-#                     # game.level.possible_positions.remove((self.pos[1], self.pos[0]))
-#                     self.pos = pos
-#                     self.rect = pygame.rect.Rect(self.pos[0] * TILE_SIZE, self.pos[1] * TILE_SIZE, 45, 45)
-#                     self.rect.inflate(20, 10)
-#
-#     def draw(self):
-#         self.display_surface.blit(self.image, self.rect)
-#
-#
-# class BuildMenu:
-#     def __init__(self):
-#         self.display_surface = pygame.display.get_surface()
-#         self.building_image = load_image("game_menu/inventory_image.png")
-#         self.building_image_rect = self.building_image.get_rect(topleft=(WIDTH // 2 - 100, 5))
-#
-#     def draw(self, screen):
-#         screen.blit(self.building_image, self.building_image_rect)
-
-
 class Inventory:
     def __init__(self):
         self.offset = ()
         self.display_surface = pygame.display.get_surface()
-        self.items = {"rock": 200}
+        self.items = {}
         self.images = {"bush": load_image("resources_images/berry.png"),
                        "coal_ore": load_image("resources_images/coal.png"),
                        "gold_ore": load_image("resources_images/gold_stone.png"),
@@ -437,7 +396,6 @@ class Game:
         self.in_game_menu = InGameMenu()
         self.sell = ItemSell()
         self.buy = LandPurchase()
-        # self.build = BuildMenu()
         pygame.init()
         size = WIDTH, HEIGHT
         self.screen = pygame.display.set_mode(size)
@@ -456,35 +414,34 @@ class Game:
         self.resource_generate_event = pygame.USEREVENT + 1
         pygame.time.set_timer(self.resource_generate_event, 40000)
         self.level = Level()
-        # self.furnace = Furnace([self.level.visible_sprites, self.level.obstacle_sprites])
-        # self.forge = Forge([self.level.visible_sprites, self.level.obstacle_sprites])
         for i in range(random.randint(3, 9)):
             self.resource_generate()
 
     def resource_generate(self):
-        pos = random.choice(self.level.possible_positions)
-        self.level.impossible_positions.append(pos)
-        self.level.possible_positions.remove(pos)
-        resource_file = random.choice(self.resources_list)
-        if resource_file == "iron_ore.png":
-            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 3,
-                           3, f"resources_images/{resource_file}", 9, resource_file.split('.')[0])
-        elif resource_file == "rock.png":
-            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 5,
-                           1, f"resources_images/{resource_file}", 5, resource_file.split('.')[0])
-        elif resource_file == "tree.png":
-            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 7,
-                           1, f"resources_images/{resource_file}", 7, resource_file.split('.')[0])
-        elif resource_file == "coal_ore.png":
-            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 7,
-                           1, f"resources_images/{resource_file}", 7, resource_file.split('.')[0])
-        elif resource_file == "bush.png":
-            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 2,
-                           1, f"resources_images/{resource_file}", 2, resource_file.split('.')[0])
-        elif resource_file == "gold_ore.png":
-            res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 13,
-                           1, f"resources_images/{resource_file}", 13, resource_file.split('.')[0])
-        self.resources.append(res)
+        for i in range(self.buy.islands_count):
+            pos = random.choice(self.level.possible_positions)
+            self.level.impossible_positions.append(pos)
+            self.level.possible_positions.remove(pos)
+            resource_file = random.choice(self.resources_list)
+            if resource_file == "iron_ore.png":
+                res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 3,
+                               3, f"resources_images/{resource_file}", 9, resource_file.split('.')[0])
+            elif resource_file == "rock.png":
+                res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 5,
+                               1, f"resources_images/{resource_file}", 5, resource_file.split('.')[0])
+            elif resource_file == "tree.png":
+                res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 7,
+                               1, f"resources_images/{resource_file}", 7, resource_file.split('.')[0])
+            elif resource_file == "coal_ore.png":
+                res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 7,
+                               1, f"resources_images/{resource_file}", 7, resource_file.split('.')[0])
+            elif resource_file == "bush.png":
+                res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 2,
+                               1, f"resources_images/{resource_file}", 2, resource_file.split('.')[0])
+            elif resource_file == "gold_ore.png":
+                res = Resource((pos[1], pos[0]), [self.level.visible_sprites, self.level.obstacle_sprites], 13,
+                               1, f"resources_images/{resource_file}", 13, resource_file.split('.')[0])
+            self.resources.append(res)
 
     def run(self):
         while self.running:
@@ -530,7 +487,6 @@ class Game:
                     self.in_game_menu.draw(self.screen)
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         self.in_game_menu.update()
-                    # self.build.draw(self.screen)
                 self.clock.tick(60)
                 if self.level.pickaxe.frames_pickaxe_attack_left[-1] == self.level.pickaxe.image or \
                         self.level.pickaxe.frames_pickaxe_attack_right[-1] == self.level.pickaxe.image:
