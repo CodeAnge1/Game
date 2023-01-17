@@ -1,4 +1,3 @@
-import time
 import pygame
 import random
 import sys
@@ -8,7 +7,7 @@ from debug import debug
 from debug import font
 
 
-def load_image(name, colorkey=None):
+def load_image(name):
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
         print(f"Файл с изображением '{fullname}' не найден")
@@ -18,7 +17,7 @@ def load_image(name, colorkey=None):
 
 
 class Pickaxe(pygame.sprite.Sprite):
-    def __init__(self, pos, sheets, columns, rows, x, y):
+    def __init__(self, pos, sheets, columns, rows):
         super().__init__()
         self.frames_pickaxe_attack_right = []
         self.frames_pickaxe_attack_left = []
@@ -120,7 +119,7 @@ class Resource(pygame.sprite.Sprite):
 
 class Player(pygame.sprite.Sprite):
 
-    def __init__(self, pos, groups, obstacles_sprites, sheets, columns, rows, x, y):
+    def __init__(self, pos, groups, obstacles_sprites, sheets, columns, rows):
         super().__init__(groups)
         self.money_count = 0
         self.frames_right_with_pickaxe = []
@@ -256,6 +255,8 @@ class Level:
         self.possible_positions = []
         self.impossible_positions = []
         self.create_map()
+        self.money_count_text = font.render(str(self.player.money_count), True, "white")
+        self.money_count_rect = self.money_count_text.get_rect(topleft=(75, HEIGHT - 53))
 
     def create_map(self):
         for row_index, row in enumerate(MAP):
@@ -299,8 +300,6 @@ class Level:
         if self.player.is_attack:
             self.pickaxe.update()
             self.pickaxe.draw(self.display_surface)
-        self.money_count_text = font.render(str(self.player.money_count), True, "white")
-        self.money_count_rect = self.money_count_text.get_rect(topleft=(75, HEIGHT - 53))
         self.display_surface.blit(self.money_count_text, self.money_count_rect)
         self.display_surface.blit(self.money_img, self.money_rect)
 
@@ -374,6 +373,7 @@ class CameraMovement(pygame.sprite.Group):
 
 class Inventory:
     def __init__(self):
+        self.offset = ()
         self.display_surface = pygame.display.get_surface()
         self.items = {"rock": 200}
         self.images = {"bush": load_image("resources_images/berry.png"),
@@ -409,7 +409,6 @@ class Inventory:
         if game.inventory_menu:
             screen.blit(self.background_image, self.background_rect)
             self.offset = (104, 0)
-            offset = (0, 0)
             counter = 0
             for k in self.items.keys():
                 if counter == 9:
@@ -417,7 +416,7 @@ class Inventory:
                     self.offset = (100, 100)
                 offset = (self.offset[0] * counter, self.offset[1])
                 screen.blit(self.images[k], self.images[k].get_rect(
-                    topleft=(((WIDTH // 2 - 415 + offset[0]), HEIGHT // 2 - 85 + offset[1]))))
+                    topleft=((WIDTH // 2 - 415 + offset[0]), HEIGHT // 2 - 85 + offset[1])))
                 count_text = font.render(str(self.items[k]), True, "white")
                 count_rect = count_text.get_rect(
                     topleft=((WIDTH // 2 - 415 + offset[0]) + 40, (HEIGHT // 2 - 85 + offset[1]) + 40))
@@ -457,7 +456,6 @@ class Game:
         self.resource_generate_event = pygame.USEREVENT + 1
         pygame.time.set_timer(self.resource_generate_event, 40000)
         self.level = Level()
-        pos = random.choice(self.level.possible_positions)
         # self.furnace = Furnace([self.level.visible_sprites, self.level.obstacle_sprites])
         # self.forge = Forge([self.level.visible_sprites, self.level.obstacle_sprites])
         for i in range(random.randint(3, 9)):
@@ -502,32 +500,12 @@ class Game:
                                 self.inventory_menu = True
                             else:
                                 self.inventory_menu = False
-                                self.build_menu = False
                                 self.land_purchase_menu = False
                             self.escape_count += 1
                     if event.type == pygame.MOUSEMOTION:
                         self.mouse_pos = event.pos
                     if self.game_is_paused:
-                        # if self.build_menu:
-                        #     # self.furnace.build()
-                        # # if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                        # #     self.inventory_menu = False
-                        #     # if (self.build.building_image_rect[0] < self.mouse_pos[0] < self.build.building_image_rect[
-                        #     #     0] + self.build.building_image_rect[2]) and \
-                        #     #         (self.build.building_image_rect[1] < self.mouse_pos[1] <
-                        #     #          self.build.building_image_rect[1] + self.build.building_image_rect[3]):
-                        #     #     self.build_menu = True
-                        #     #     self.inventory_menu = False
-                        #     #     self.land_purchase_menu = False
-                        #     if (self.inventory.inventory_image_rect[0] < self.mouse_pos[0] <
-                        #         self.inventory.inventory_image_rect[0] + self.inventory.inventory_image_rect[2]) and \
-                        #             (self.inventory.inventory_image_rect[1] < self.mouse_pos[1] <
-                        #              self.inventory.inventory_image_rect[1] + self.inventory.inventory_image_rect[3]):
-                        #         self.build_menu = False
-                        #         self.inventory_menu = True
-                        #         self.land_purchase_menu = False
                         self.inventory.draw(self.screen)
-                        # self.build.draw(self.screen)
                     else:
                         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                             self.is_up = False
@@ -568,8 +546,6 @@ class Game:
                         self.running = False
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         menu.update(event.pos)
-            debug(
-                f"player_pos = {self.level.player.get_pos()}, offset = {self.level.visible_sprites.offset}, mouse = {self.mouse_pos}")
             pygame.display.flip()
         pygame.quit()
 
@@ -611,22 +587,25 @@ class InGameMenu:
     def __init__(self):
         pass
 
-    def is_inventory(self):
+    @staticmethod
+    def is_inventory():
         game.inventory_menu = True
 
-    def is_buy(self):
+    @staticmethod
+    def is_buy():
         game.buy.buy_island()
 
-    def draw(self, screen):
+    @staticmethod
+    def draw(screen):
         screen.blit(game.inventory.inventory_image, game.inventory.inventory_image_rect)
         screen.blit(game.sell.image, game.sell.rect)
         screen.blit(game.buy.image, game.buy.rect)
 
     def update(self):
         if (game.inventory.inventory_image_rect[0] < game.mouse_pos[0] < game.inventory.inventory_image_rect[
-                0] + game.inventory.inventory_image_rect[2]) and \
-                    (game.inventory.inventory_image_rect[1] < game.mouse_pos[1] <
-                     game.inventory.inventory_image_rect[1] + game.inventory.inventory_image_rect[3]):
+            0] + game.inventory.inventory_image_rect[2]) and \
+                (game.inventory.inventory_image_rect[1] < game.mouse_pos[1] <
+                 game.inventory.inventory_image_rect[1] + game.inventory.inventory_image_rect[3]):
             self.is_inventory()
         if (game.sell.rect[0] < game.mouse_pos[0] < game.sell.rect[
             0] + game.sell.rect[2]) and \
@@ -653,10 +632,12 @@ class Menu:
         self.btn_exit_image = load_image(image_names[2])
         self.btn_exit_rect = self.btn_start_image.get_rect(topleft=(WIDTH // 2 - 100, HEIGHT - 250))
 
-    def start_game(self):
+    @staticmethod
+    def start_game():
         game.game_is_started = True
 
-    def exit_game(self):
+    @staticmethod
+    def exit_game():
         sys.exit()
 
     def draw(self):
