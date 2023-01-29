@@ -330,59 +330,6 @@ class CameraMovement(pygame.sprite.Group):
             self.display_surface.blit(sprite.image, offset_position)
 
 
-class Inventory:
-    def __init__(self):
-        self.offset = ()
-        self.display_surface = pygame.display.get_surface()
-        self.items = {}
-        self.images = {"bush": load_image("resources_images/berry.png"),
-                       "coal_ore": load_image("resources_images/coal.png"),
-                       "gold_ore": load_image("resources_images/gold_stone.png"),
-                       "iron_ore": load_image("resources_images/iron_stone.png"),
-                       "rock": load_image("resources_images/stone.png"),
-                       "tree": load_image("resources_images/wood.png")}
-        self.background_image = load_image("game_menu/inventory_background.png")
-        self.background_rect = self.background_image.get_rect(topleft=(WIDTH // 2 - 437, HEIGHT // 2 - 123))
-        self.inventory_image = load_image("game_menu/inventory_image.png")
-        self.inventory_image_rect = self.inventory_image.get_rect(topleft=(WIDTH // 2 - 100, 5))
-
-    def append_item(self, item_name, item_count):
-        if item_name in self.items.keys():
-            self.items[item_name] = int(self.items[item_name]) + item_count
-        else:
-            self.items[item_name] = item_count
-
-    def remove_item(self, item_name, item_count):
-        if item_name in self.items.keys():
-            self.items[item_name] = int(self.items[item_name]) - item_count
-        else:
-            return
-
-    def get_item_count(self, item):
-        return self.items[item]
-
-    def item_in_inventory(self, item):
-        return item in self.items.keys()
-
-    def draw(self, screen):
-        if game.inventory_menu:
-            screen.blit(self.background_image, self.background_rect)
-            self.offset = (104, 0)
-            counter = 0
-            for k in self.items.keys():
-                if counter == 9:
-                    counter = 0
-                    self.offset = (100, 100)
-                offset = (self.offset[0] * counter, self.offset[1])
-                screen.blit(self.images[k], self.images[k].get_rect(
-                    topleft=((WIDTH // 2 - 415 + offset[0]), HEIGHT // 2 - 85 + offset[1])))
-                count_text = font.render(str(self.items[k]), True, "white")
-                count_rect = count_text.get_rect(
-                    topleft=((WIDTH // 2 - 415 + offset[0]) + 40, (HEIGHT // 2 - 85 + offset[1]) + 40))
-                screen.blit(count_text, count_rect)
-                counter += 1
-
-
 class Game:
     def __init__(self):
         self.game_is_started = False
@@ -504,6 +451,59 @@ class Game:
                         menu.update(event.pos)
             pygame.display.flip()
         pygame.quit()
+
+
+class Inventory:
+    def __init__(self):
+        self.offset = ()
+        self.display_surface = pygame.display.get_surface()
+        self.items = {}
+        self.images = {"bush": load_image("resources_images/berry.png"),
+                       "coal_ore": load_image("resources_images/coal.png"),
+                       "gold_ore": load_image("resources_images/gold_stone.png"),
+                       "iron_ore": load_image("resources_images/iron_stone.png"),
+                       "rock": load_image("resources_images/stone.png"),
+                       "tree": load_image("resources_images/wood.png")}
+        self.background_image = load_image("game_menu/inventory_background.png")
+        self.background_rect = self.background_image.get_rect(topleft=(WIDTH // 2 - 437, HEIGHT // 2 - 123))
+        self.inventory_image = load_image("game_menu/inventory_image.png")
+        self.inventory_image_rect = self.inventory_image.get_rect(topleft=(WIDTH // 2 - 100, 5))
+
+    def append_item(self, item_name, item_count):
+        if item_name in self.items.keys():
+            self.items[item_name] = int(self.items[item_name]) + item_count
+        else:
+            self.items[item_name] = item_count
+
+    def remove_item(self, item_name, item_count):
+        if item_name in self.items.keys():
+            self.items[item_name] = int(self.items[item_name]) - item_count
+        else:
+            return
+
+    def get_item_count(self, item):
+        return self.items[item]
+
+    def item_in_inventory(self, item):
+        return item in self.items.keys()
+
+    def draw(self, screen):
+        if game.inventory_menu:
+            screen.blit(self.background_image, self.background_rect)
+            self.offset = (104, 0)
+            counter = 0
+            for k in self.items.keys():
+                if counter == 9:
+                    counter = 0
+                    self.offset = (100, 100)
+                offset = (self.offset[0] * counter, self.offset[1])
+                screen.blit(self.images[k], self.images[k].get_rect(
+                    topleft=((WIDTH // 2 - 415 + offset[0]), HEIGHT // 2 - 85 + offset[1])))
+                count_text = font.render(str(self.items[k]), True, "white")
+                count_rect = count_text.get_rect(
+                    topleft=((WIDTH // 2 - 415 + offset[0]) + 40, (HEIGHT // 2 - 85 + offset[1]) + 40))
+                screen.blit(count_text, count_rect)
+                counter += 1
 
 
 class ItemSell:
